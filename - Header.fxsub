@@ -1,0 +1,149 @@
+
+//                   - DXShader - Ver( 0.1 )
+//============================================================================//
+//         Project DIVA X HD  -  " Shader for MikuMikuDance "
+//                        Credits: Infu_D
+//============================================================================//
+
+  //====================  Matrices  =====================//
+float4x4 g_transforms 		 : WORLDVIEWPROJECTION;
+float4x4 g_worlds    		 : WORLD;
+float4x4 g_worlds_invtrans 	 : WORLDINVERSETRANSPOSE;
+float4x4 g_worldview       	 : WORLDVIEW;
+float4x4 g_worldview_inverse : WORLDVIEWINVERSE;
+float4x4 g_joint 			 : JOINT;
+float4x4 g_joint_inverse 	 : JOINTINVERSE;
+float4x4 g_projection_view   : PROJECTIONVIEW;
+
+float4 	LightDirection    : DIRECTION < string Object = "Light"; >;
+float4	CameraPosition    : POSITION  < string Object = "Camera"; >;
+
+  //=== Material ===//
+float4   MaterialDiffuse   : DIFFUSE  < string Object = "Geometry"; >;
+float4   MaterialAmbient   : AMBIENT  < string Object = "Geometry"; >;
+float4   MaterialEmmisive  : EMISSIVE < string Object = "Geometry"; >;
+float4   MaterialSpecular  : SPECULAR < string Object = "Geometry"; >;
+float    SpecularPower     : SPECULARPOWER < string Object = "Geometry"; >;
+float4   MaterialToon      : TOONCOLOR;
+float4 	 EdgeColor		   : EDGECOLOR;
+  //=== Light Data ===//
+float4   LightDiffuse      : DIFFUSE   < string Object = "Light"; >;
+float4   LightAmbient      : AMBIENT   < string Object = "Light"; >;
+float4   LightSpecular     : SPECULAR  < string Object = "Light"; >;
+
+float  Time: TIME;
+float2 ViewportSize : VIEWPORTPIXELSIZE;
+static const float2 ViewportOffset = float2(0.5,0.5)/ViewportSize;
+
+bool parthf;   // Perspective flag
+bool transp;   // Semi-transparent flag
+bool spadd;    // Sphere map additive composition flag
+#define SKII1  1500
+#define SKII2  8000
+#define Toon   3
+
+  //=== MMD Samplers ===//
+sampler MMDSamp0 : register(s0);
+sampler MMDSamp1 : register(s1);
+sampler MMDSamp2 : register(s2);
+
+  //=================  DXShader Sync  =================//
+#define MS(a,b) a##b 
+float Override 	  : CONTROLOBJECT < string name = Controller; string item = "Override";>;
+
+float4x4 Stg0_Diff : CONTROLOBJECT < string name = Controller; string item = "Stage0_Diffuse"  ; >;
+float4x4 Stg0_Dire : CONTROLOBJECT < string name = Controller; string item = "Stage0_Position" ; >;
+float4x4 Stg1_Diff : CONTROLOBJECT < string name = Controller; string item = "Stage1_Diffuse"  ; >;
+float4x4 Stg1_Dire : CONTROLOBJECT < string name = Controller; string item = "Stage1_Position" ; >;
+float4x4 Stg2_Diff : CONTROLOBJECT < string name = Controller; string item = "Stage2_Diffuse"  ; >;
+float4x4 Stg2_Dire : CONTROLOBJECT < string name = Controller; string item = "Stage2_Position" ; >;
+static float3 stage0_diff = Stg0_Diff._41_42_43 - float3(4.5, 15, -0.5);
+static float3 stage0_dir  = Stg0_Dire._41_42_43 - float3(4.5, 13, -0.5);
+static float3 stage1_diff = Stg1_Diff._41_42_43 - float3(7, 15, -0.5);
+static float3 stage1_dir  = Stg1_Dire._41_42_43 - float3(7, 13, -0.5);
+static float3 stage2_diff = Stg2_Diff._41_42_43 - float3(9.5, 15, -0.5);
+static float3 stage2_dir  = Stg2_Dire._41_42_43 - float3(9.5, 13, -0.5);
+
+float4x4 Common0_Diff : CONTROLOBJECT < string name = Controller; string item = "Com_0_Diffuse"  ; >;
+float4x4 Common0_Dire : CONTROLOBJECT < string name = Controller; string item = "Com_0_Position" ; >;
+float4x4 Common1_Diff : CONTROLOBJECT < string name = Controller; string item = "Com_1_Diffuse"  ; >;
+float4x4 Common1_Dire : CONTROLOBJECT < string name = Controller; string item = "Com_1_Position" ; >;
+float4x4 Common2_Diff : CONTROLOBJECT < string name = Controller; string item = "Com_2_Diffuse"  ; >;
+float4x4 Common2_Dire : CONTROLOBJECT < string name = Controller; string item = "Com_2_Position" ; >;
+static float3 common0_diff = Common0_Diff._41_42_43 - float3(4.5, 10, -0.5);
+static float3 common0_dir  = Common0_Dire._41_42_43;
+static float3 common1_diff = Common1_Diff._41_42_43 - float3(  7, 10, -0.5);
+static float3 common1_dir  = Common1_Dire._41_42_43;
+static float3 common2_diff = Common2_Diff._41_42_43 - float3(9.5, 10, -0.5);
+static float3 common2_dir  = Common2_Dire._41_42_43;
+
+float4x4 IBL0_Diff : CONTROLOBJECT < string name = Controller; string item = "IBL0_Diffuse"  ; >;
+float4x4 IBL0_Spec : CONTROLOBJECT < string name = Controller; string item = "IBL0_Specular" ; >;
+float4x4 IBL0_Ambi : CONTROLOBJECT < string name = Controller; string item = "IBL0_Ambient"  ; >;
+float4x4 IBL0_Dire : CONTROLOBJECT < string name = Controller; string item = "IBL0_Position" ; >;
+static float4 IBL0_diffuse   = IBL0_Diff._41_42_43_32 - float4(-7, 15, -0.5, 0);
+static float4 IBL0_ambient   = IBL0_Ambi._41_42_43_32 - float4(-7, 13, -0.5, 0);
+static float4 IBL0_specular  = IBL0_Spec._41_42_43_32 - float4(-7, 11, -0.5, 0);
+static float3 IBL0_direction = IBL0_Dire._41_42_43 - float3(-7, 9, -0.5);
+
+float4x4 IBL1_Diff : CONTROLOBJECT < string name = Controller; string item = "IBL1_Diffuse"  ; >;
+float4x4 IBL1_Spec : CONTROLOBJECT < string name = Controller; string item = "IBL1_Specular" ; >;
+float4x4 IBL1_Ambi : CONTROLOBJECT < string name = Controller; string item = "IBL1_Ambient"  ; >;
+float4x4 IBL1_Dire : CONTROLOBJECT < string name = Controller; string item = "IBL1_Position" ; >;
+static float4 IBL1_diffuse   = IBL1_Diff._41_42_43_32 - float4(-4.5, 15, -0.5, 0);
+static float4 IBL1_ambient   = IBL1_Ambi._41_42_43_32 - float4(-4.5, 13, -0.5, 0);
+static float4 IBL1_specular  = IBL1_Spec._41_42_43_32 - float4(-4.5, 11, -0.5, 0);
+static float3 IBL1_direction = IBL1_Dire._41_42_43 - float3(-4.5, 9, -0.5);
+
+#define SELF_SHADOW 1
+
+  //====================  Textures  =====================//
+//=== Normal ===//
+#ifdef _Normal
+	texture2D g_normal <string ResourceName = _Normal;>;
+#else
+	texture2D g_normal;
+#endif
+
+//=== Mask ===//
+#ifdef _Mask
+	texture2D g_mask <string ResourceName = _Mask;>;
+#else
+	texture2D g_mask;
+#endif
+
+//=== Emission ===//
+#ifdef _Emission
+	texture2D g_emission <string ResourceName = _Emission;>;
+#else
+	texture2D g_emission;
+#endif
+
+//=== LightMap ===//
+#ifdef _LightMap
+	texture2D g_lightmap <string ResourceName = _LightMap;>;
+#else
+	texture2D g_lightmap;
+#endif
+
+//=== Environment ===//
+#ifdef _Env_Map
+	textureCUBE g_envmap <string ResourceName = _Env_Map;>;
+#else
+	textureCUBE g_envmap;
+#endif
+
+  //=====================================================//
+      #include "- Shaders/#Include/+ HgShadow.fxh"
+  //=====================  Shaders  =====================//
+#if SHADER_TYPE == 0
+	#include "- Shaders/SKIN_TH.fxsub"
+#elif SHADER_TYPE == 1
+	#include "- Shaders/OBJ_TH.fxsub"
+#elif SHADER_TYPE == 2
+	#include "- Shaders/HAIR_TH.fxsub"
+#elif SHADER_TYPE == 3
+	#include "- Shaders/EYE_TH.fxsub"
+#else
+	#include "- Shaders/OBJ_TH.fxsub"
+#endif

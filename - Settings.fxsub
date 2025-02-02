@@ -1,0 +1,24 @@
+//==============================//
+//           GENERAL : 
+//==============================//
+
+#define Controller "HD_Controller.pmx"
+#define Flip_Tooncurve  0  // In case Tooncurve is flipped
+#define Use_VertexColor 0  // Vertex Color is multiplied
+
+//==============================//
+//           EMC(s) : 
+//=============================//
+#define _EMC  "EMC(s)/Default.dds"
+#define MipCount 7.0  // EMC's Level of Detail
+
+//==============================//
+//           Tonemap(s) : 
+//=============================//
+#define Hue        0.0f
+#define Saturation 1.0f
+#define Lightness  0.8f
+#define Exposure   1.0f
+#define Contrast   1.0f
+
+//================================================================//

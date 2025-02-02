@@ -1,0 +1,437 @@
+//============================================================================//
+// - - - - - - - - - - -
+#include "- Shaders/#Include/common_scene.fxh"
+#include "- Shaders/#Include/common_chara.fxh"
+// - - - - - - - - - - -
+//  Textures / Samplers  :
+//=== Diffuse ===//
+#ifdef _Diffuse
+	texture2D g_diffuse <string ResourceName = _Diffuse;>;
+#else
+	texture2D g_diffuse: MATERIALTEXTURE;
+#endif
+sampler2D g_diffuse_s = sampler_state {
+    texture = <g_diffuse>;
+    FILTER= ANISOTROPIC;
+    AddressU  = WRAP;
+    AddressV  = WRAP;
+	MAXANISOTROPY = 16;
+};
+//=== Mask ===//
+sampler2D g_mask_s = sampler_state {
+    texture = <g_mask>;
+    FILTER= ANISOTROPIC;
+    AddressU  = WRAP;
+    AddressV  = WRAP;
+	MAXANISOTROPY = 16;
+};
+//=== Normal ===//
+sampler2D g_normal_s = sampler_state {
+    texture = <g_normal>;
+    FILTER= ANISOTROPIC;
+    AddressU  = WRAP;
+    AddressV  = WRAP;
+	MAXANISOTROPY = 16;
+};
+//=== Emission ===//
+sampler2D g_emission_s = sampler_state {
+    texture = <g_emission>;
+    FILTER= ANISOTROPIC;
+    AddressU  = WRAP;
+    AddressV  = WRAP;
+	MAXANISOTROPY = 16;
+};
+
+//=== Translucency ===//
+#ifdef _Transparency
+	texture2D g_transparency <string ResourceName = _Transparency;>;
+#else
+	texture2D g_transparency;
+#endif
+sampler2D g_transparency_s = sampler_state {
+    texture = <g_transparency>;
+    FILTER= ANISOTROPIC;
+    AddressU  = CLAMP;
+    AddressV  = CLAMP;
+	MAXANISOTROPY = 16;
+};
+
+//=== EMC Cubemap ===//
+textureCUBE g_emc_cubemap <string ResourceName = _EMC;>;
+sampler g_emc_cubemap_s = sampler_state {
+	Texture = <g_emc_cubemap>;
+    FILTER= ANISOTROPIC;
+    MINFILTER = LINEAR;
+    MAGFILTER = LINEAR;
+    MIPFILTER = LINEAR;
+    ADDRESSU  = WRAP;
+    ADDRESSV  = WRAP;
+	ADDRESSW  = WRAP;
+	MAXANISOTROPY = 16;
+};
+//============================================================================//
+//  Base Structure  :
+struct vs_in
+{
+	float4 a_position  : POSITION0;
+	float3 a_normal    : NORMAL0;
+	float4 a_color     : TEXCOORD2;
+	float4 a_tangent   : TEXCOORD3;
+	float2 a_texcoord0 : TEXCOORD0;
+	float2 a_texcoord1 : TEXCOORD1;
+};
+struct vs_out
+{
+	float4 position         : SV_POSITION;
+	float3 vertcoord        : TEXCOORD0;
+	float2 fragcoord        : TEXCOORD1;
+	float4 color            : TEXCOORD2;
+	float4 spec_color       : TEXCOORD3;
+	float4 texcoord         : TEXCOORD4; //xy=texcoord0, zw=texcoord1
+	float3 texcoord_shadow0 : TEXCOORD5;
+	float3 texcoord_shadow1 : TEXCOORD6;
+	//float3 tangent        : TANGENT0;
+	//float3 binormal       : BINORMAL0;
+	float4 normal           : NORMAL0;   //xyz=normal, w=fog
+	float3 eye              : TEXCOORD9;
+};
+//============================================================================//
+//  Vertex Shader(s)  :
+vs_out vs_model (vs_in i)
+{
+    vs_out o = (vs_out)0;
+// - - - - - - - - - - - - - - - - - - - - //
+	float4 a_position  = i.a_position;
+	float3 a_normal    = i.a_normal;
+	float4 a_color     = i.a_color;
+	float4 a_tangent   = i.a_tangent;
+	float2 a_texcoord0 = i.a_texcoord0;
+	float2 a_texcoord1 = i.a_texcoord1;
+// - - - - - - - - - - - - - - - - - - - - //
+	float4 pos_w;
+    float3 normal_w;
+    float3 tangent_w;
+    float4 pos_c;
+	
+		float4 pos_m;
+        float3 normal_m;
+        float3 tangent_m;
+        
+            pos_m.xyz = a_position.xyz;
+            pos_m.w = a_position.w;
+            normal_m = a_normal;
+            tangent_m = a_tangent.xyz;
+
+        pos_w.xyz = mul(pos_m, g_worlds);
+        pos_w.w = 1.0;
+	
+        normal_w = mul(normal_m, (float3x3)g_worlds);
+        tangent_w = mul(tangent_m.xyz, (float3x3)g_worlds);
+
+        pos_c = mul(pos_w, g_transforms);
+
+    o.position = pos_c;
+	
+	o.vertcoord = pos_w.xyz;
+	
+	float2 fragcoord = float2((pos_c.x/pos_c.w + 1.0f) * 0.5f,
+    1.0f - (pos_c.y/pos_c.w + 1.0f) * 0.5f);
+	o.fragcoord = fragcoord.xy;
+	
+	o.normal.xyz = normal_w;
+    //o.tangent = tangent_w;
+    //o.binormal = cross(normal_w, tangent_w) * a_tangent.w;
+
+    float4 texcoord0;
+    float4 texcoord1;
+	
+        texcoord0 = float4(a_texcoord0, 0.0, 1.0);
+        texcoord1 = float4(a_texcoord1, 0.0, 1.0);
+		
+    #ifdef obj_ID
+    o.texcoord.xy = texcoord0.xy * g_texcoord_transforms[0].xy + g_texcoord_transforms[0].zw;
+    o.texcoord.zw = texcoord1.xy * g_texcoord_transforms[1].xy + g_texcoord_transforms[1].zw;
+	#else
+	o.texcoord.xy = texcoord0 * g_texcoord_transforms[0];
+    o.texcoord.zw = texcoord1 * g_texcoord_transforms[1];
+	#endif
+	
+	float3 eye_w = g_view_position.xyz - pos_w.xyz;
+    o.eye = eye_w;
+	
+        o.texcoord_shadow0 = (0.0);
+        o.texcoord_shadow1 = (0.0);
+
+    o.color = a_color;
+    
+	return o;
+}
+//============================================================================//
+// Fragment Shader(s) :
+float4 ps_model(vs_out i) : COLOR0
+{
+	float4x4 Frame = CTF(i.vertcoord, i.normal, float4(i.texcoord.xy, 0, 0));
+	float4 frg_color = i.color;
+	float4 frg_spec_color = i.spec_color;
+	float4 frg_texcoord = i.texcoord; //xy=texcoord0, zw=texcoord1
+	
+	float3 fs_in_attr0 = i.eye;
+	float3 fs_in_attr1 = Frame[2].xyz;
+	float2 fs_in_attr6 = i.texcoord.zw; //xy=texcoord0, zw=texcoord1
+	float3 fs_in_attr7 = i.vertcoord.xyz*float3(1, 1, -1)*0.08;
+	float3 fs_in_attr8 = Frame[1].xyz;
+	float3 fs_in_attr9 = 1;
+	
+	
+	float3 frg_texcoord_shadow0 = i.texcoord_shadow0;
+	float3 frg_texcoord_shadow1 = i.texcoord_shadow1;
+	float3 frg_tangent = Frame[0].xyz;
+	float3 frg_binormal = Frame[1].xyz;
+	float4 frg_normal = Frame[2]; //xyz=normal, w=fog
+	float3 frg_eye = i.eye;
+//============================================================================//
+	gl_FragCoord.xy = i.fragcoord;
+	float4 result;
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
+
+	float Shadow = HgShadow_GetSelfShadowRate(gl_FragCoord);
+
+	
+	//float4 g_light_env_chara_diffuse;
+	
+	////////////////  IBL Color 0 (Diffuse)
+	float3 IBL_Diffuse = 0.3;
+	float3 IBL_Ambient = 0;
+	float3 IBL_Specular = 1;
+	
+	////////////////  Light Setting Chara 0
+	g_light_env_chara_diffuse.xyz *= 0.7;
+	g_light_env_chara_diffuse.w = 5;
+	
+	////////////////  Light Setting Chara 3 or IBL Color (Ambient)
+	float3 g_light_env_fresnel_ambient = 0.5 * g_light_env_chara_diffuse.xyz;
+	float lod = 7.0 * 1.25;
+
+
+	float4 Main_Tex = tex2D(g_diffuse_s, frg_texcoord.xy);
+	float4 Normal_Tex = tex2D(g_normal_s, frg_texcoord.xy);
+	float4 Mat_Tex = tex2D(g_mask_s, frg_texcoord.xy);
+	float4 Emission_Tex = tex2D(g_emission_s, frg_texcoord.xy);
+
+	float3 col0 = sRGB2Lin(Main_Tex.rgb);
+	float roughness = Mat_Tex.x;
+	float metalness = Mat_Tex.y;
+
+	float3 org_normal = normalize(frg_normal);
+	float3 org_tangent = normalize(frg_tangent);
+	float3 org_binormal = normalize(frg_binormal);
+	
+	float3 normal = org_normal;
+	
+		Normal_Tex.xy = Normal_Tex.xy * 2.0 - 1.0;
+        normal += org_tangent * Normal_Tex.x;
+        normal += org_binormal * Normal_Tex.y;
+		
+	normal = normalize(normal);
+	
+	float3 light = normalize(-LightDirection);
+	float3 eye   = normalize(frg_eye);
+	
+	float  NdotL = dot(normal, light);
+	float  NdotV = dot(normal, eye);
+	
+	float toon_shadow;
+    if ( SELF_SHADOW && (0.0 < NdotL) ) {
+		Shadow = (Shadow * min(Normal_Tex.w, Shadow)) * 0.5 + 0.5;
+		toon_shadow = (NdotL * Shadow + Shadow) * 0.5;
+    } else {
+		toon_shadow = NdotL * 0.5 + 0.5;
+    }
+	
+	float  Spec;
+	float3 SpecColor;
+	float3 specFresnel;
+	
+	if ((0.0 < NdotV)) {
+		float3 direct = PBR(normal, light, eye, roughness, metalness);  // F, BRDF, NdotL
+		
+		Spec = direct.x * max(0.0, direct.y);
+		SpecColor = Spec * g_light_env_chara_diffuse.xyz * g_light_env_chara_diffuse.w;	
+		specFresnel = SpecColor * direct.z;
+	} else {
+		float3 direct = PBR(normal, light, eye, roughness, metalness);  // F, BRDF, NdotL
+		
+		Spec = direct.x * max(0.0, direct.y);
+		SpecColor = Spec * g_light_env_chara_diffuse.xyz * g_light_env_chara_diffuse.w;	
+		specFresnel = SpecColor * direct.z;
+	}
+	
+	////////////////////////////////////////////////////////////////////////////
+		float3 refl = normalize( reflect(-eye*float3(1,1,-1), -normal*float3(1,1,-1)) );
+		float4 IBLVecA = float4(fs_in_attr7 - float3(0,0.5,-5)*4, 1);
+		float4 IBLVecB = float4(fs_in_attr7 - 0, 1);
+		IBLVecA = IBLTransform(IBLVecA, eye, refl, 1200);
+		IBLVecB = IBLTransform(IBLVecB, eye, refl, 1200);
+		
+	eye *= float3(1, 1, -1);
+	
+	float3 eyerefl = refl + eye;
+	float Ks = FresnelSchlick(metalness, rsqrt(dot(eyerefl, eyerefl)) * dot(eyerefl, eye));
+	float co = (roughness * 0.0175 + (1.57 * -roughness)) * 0.16 + 0.25;
+	float F = -cos(6.283185482f * frac(abs(co))) * Ks + Ks;
+	
+	float3 shadow_curve = sRGB2Lin(tex2D(g_transparency_s, float2(toon_shadow, 0.875)));
+	shadow_curve *= g_light_env_chara_diffuse.xyz * g_light_env_chara_diffuse.w * (1 / PI);
+	
+	float3 spec_curve = sRGB2Lin(tex2D(g_transparency_s, float2(saturate(max(0.0, Spec)), 0.625)));
+	spec_curve *= g_light_env_chara_diffuse.xyz;
+	
+	float3 rim_curve = sRGB2Lin(tex2D(g_transparency_s, float2(1.0 - NdotV, 0.375)));
+	rim_curve *= g_light_env_fresnel_ambient * Mat_Tex.w;
+	
+	float3 IBLvec = float3((normal.xy * (1.0 / abs(1.0)) + 1.5) - 1.5, -normal.z);
+	float3 diff = sRGB2Lin(texCUBElod(g_emc_cubemap_s, float4(IBLvec, lerp(lod * 0.65 - 0.65, lod - 1, roughness)))) * (1 - F);
+	diff *= IBL_Diffuse.rgb;
+	diff += IBL_Ambient.rgb;
+	
+	float3 spec_IBL = sRGB2Lin(texCUBElod(g_emc_cubemap_s, float4(refl.xyz, lod * roughness))) * IBL_Specular;
+	
+	float3 spec = (spec_IBL * F + specFresnel) + spec_curve;
+	spec *= Emission_Tex.w;
+
+	diff = (diff + shadow_curve) * col0;
+	diff += spec;
+
+	float3 metallic = (spec_IBL + SpecColor) * col0;
+
+	result.xyz  = lerp(diff, metallic * shadow_curve, Mat_Tex.z) + rim_curve;	
+	result.xyz += Emission.xyz * sRGB2Lin(Emission_Tex.xyz);
+	result.xyz *= 1 * 1;
+	result.xyz = pow(result.xyz, 1);
+	
+	result.w = Main_Tex.w * 1;
+	return result;
+}
+//============================================================================//
+//  Technique(s)  : 
+technique MainTecBS0 < string MMDPass = "object_ss"; > {
+    pass DrawObject {	
+		#if Src_blend == 0
+			SRCBLEND = ZERO;
+		#elif Src_blend == 1
+			SRCBLEND = ONE;
+		#elif Src_blend == 2
+			SRCBLEND = SRCCOLOR;
+		#elif Src_blend == 3
+			SRCBLEND = INVSRCCOLOR;
+		#elif Src_blend == 4
+			SRCBLEND = SRCALPHA;
+		#elif Src_blend == 5
+			SRCBLEND = INVSRCALPHA;
+		#elif Src_blend == 6
+			SRCBLEND = DESTALPHA;
+		#elif Src_blend == 7
+			SRCBLEND = INVDESTALPHA;
+		#elif Src_blend == 8
+			SRCBLEND = DESTCOLOR;
+		#elif Src_blend == 9
+			SRCBLEND = INVDESTCOLOR;
+		#elif Src_blend == 10
+			SRCBLEND = SRCALPHASAT;
+		#endif
+
+		#if Dst_blend == 0
+			DESTBLEND = ZERO;
+		#elif Dst_blend == 1
+			DESTBLEND = ONE;
+		#elif Dst_blend == 2
+			DESTBLEND = SRCCOLOR;
+		#elif Dst_blend == 3
+			DESTBLEND = INVSRCCOLOR;
+		#elif Dst_blend == 4
+			DESTBLEND = SRCALPHA;
+		#elif Dst_blend == 5
+			DESTBLEND = INVSRCALPHA;
+		#elif Dst_blend == 6
+			DESTBLEND = DESTALPHA;
+		#elif Dst_blend == 7
+			DESTBLEND = INVDESTALPHA;
+		#elif Dst_blend == 8
+			DESTBLEND = DESTCOLOR;
+		#elif Dst_blend == 9
+			DESTBLEND = INVDESTCOLOR;
+		#elif Dst_blend == 10
+			DESTBLEND = SRCALPHASAT;
+		#endif
+		
+		#if Double_sided == 0
+			CULLMODE = CCW;
+		#elif Double_sided == 1
+			CULLMODE = NONE;
+		#endif
+		
+        VertexShader = compile vs_3_0 vs_model();
+        PixelShader  = compile ps_3_0 ps_model();
+    }
+}
+
+technique MainTec0 < string MMDPass = "object"; > {
+    pass DrawObject {	
+		#if Src_blend == 0
+			SRCBLEND = ZERO;
+		#elif Src_blend == 1
+			SRCBLEND = ONE;
+		#elif Src_blend == 2
+			SRCBLEND = SRCCOLOR;
+		#elif Src_blend == 3
+			SRCBLEND = INVSRCCOLOR;
+		#elif Src_blend == 4
+			SRCBLEND = SRCALPHA;
+		#elif Src_blend == 5
+			SRCBLEND = INVSRCALPHA;
+		#elif Src_blend == 6
+			SRCBLEND = DESTALPHA;
+		#elif Src_blend == 7
+			SRCBLEND = INVDESTALPHA;
+		#elif Src_blend == 8
+			SRCBLEND = DESTCOLOR;
+		#elif Src_blend == 9
+			SRCBLEND = INVDESTCOLOR;
+		#elif Src_blend == 10
+			SRCBLEND = SRCALPHASAT;
+		#endif
+
+		#if Dst_blend == 0
+			DESTBLEND = ZERO;
+		#elif Dst_blend == 1
+			DESTBLEND = ONE;
+		#elif Dst_blend == 2
+			DESTBLEND = SRCCOLOR;
+		#elif Dst_blend == 3
+			DESTBLEND = INVSRCCOLOR;
+		#elif Dst_blend == 4
+			DESTBLEND = SRCALPHA;
+		#elif Dst_blend == 5
+			DESTBLEND = INVSRCALPHA;
+		#elif Dst_blend == 6
+			DESTBLEND = DESTALPHA;
+		#elif Dst_blend == 7
+			DESTBLEND = INVDESTALPHA;
+		#elif Dst_blend == 8
+			DESTBLEND = DESTCOLOR;
+		#elif Dst_blend == 9
+			DESTBLEND = INVDESTCOLOR;
+		#elif Dst_blend == 10
+			DESTBLEND = SRCALPHASAT;
+		#endif
+		
+		#if Double_sided == 0
+			CULLMODE = CCW;
+		#elif Double_sided == 1
+			CULLMODE = NONE;
+		#endif
+		
+        VertexShader = compile vs_3_0 vs_model();
+        PixelShader  = compile ps_3_0 ps_model();
+    }
+}
