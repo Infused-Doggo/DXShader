@@ -5,11 +5,7 @@
 // - - - - - - - - - - -
 //  Textures / Samplers  :
 //=== Diffuse ===//
-#ifdef _Diffuse
-	texture2D g_diffuse <string ResourceName = _Diffuse;>;
-#else
-	texture2D g_diffuse: MATERIALTEXTURE;
-#endif
+texture2D g_diffuse: MATERIALTEXTURE;
 sampler2D g_diffuse_s = sampler_state {
     texture = <g_diffuse>;
     FILTER= ANISOTROPIC;
@@ -303,7 +299,7 @@ float4 ps_model(vs_out i) : COLOR0
 	
 	result.xyz = diff + spec + rim_curve;	
 	result.xyz *= 1 * 1;
-	result.xyz = pow(result.xyz, 1);
+	result.xyz = Apply_Tonemap(result.xyz);
 	
 	result.w = Main_Tex.w * 1;
 	return result;

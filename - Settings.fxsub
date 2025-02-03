@@ -15,10 +15,11 @@
 //==============================//
 //           Tonemap(s) : 
 //=============================//
-#define Hue        0.0f
-#define Saturation 1.0f
-#define Lightness  0.8f
-#define Exposure   1.0f
-#define Contrast   1.0f
+float Hue        = 0.0f;
+float Saturation = 1.0f;
+float Lightness  = 0.8f;
+float Exposure   = 1.0f;
+float Contrast   = 1.0f;
+float Gamma      = 2.0f;
 
 //================================================================//
