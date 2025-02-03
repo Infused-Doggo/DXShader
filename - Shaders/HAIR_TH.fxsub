@@ -301,7 +301,7 @@ float4 ps_model(vs_out i) : COLOR0
 	result.xyz *= 1 * 1;
 	result.xyz = Apply_Tonemap(result.xyz);
 	
-	result.w = Main_Tex.w * 1;
+	result.w = Main_Tex.w * saturate(MaterialDiffuse.w);
 	return result;
 }
 //============================================================================//
