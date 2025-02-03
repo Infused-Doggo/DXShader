@@ -38,7 +38,7 @@ sampler2D g_emission_s = sampler_state {
 	MAXANISOTROPY = 16;
 };
 
-//=== Translucency ===//
+//=== ToonCurve ===//
 #ifdef _Transparency
 	texture2D g_transparency <string ResourceName = _Transparency;>;
 #else
@@ -46,10 +46,9 @@ sampler2D g_emission_s = sampler_state {
 #endif
 sampler2D g_transparency_s = sampler_state {
     texture = <g_transparency>;
-    FILTER= ANISOTROPIC;
+    FILTER = NONE;
     AddressU  = CLAMP;
     AddressV  = CLAMP;
-	MAXANISOTROPY = 16;
 };
 
 //=== EMC Cubemap ===//
@@ -276,13 +275,13 @@ float4 ps_model(vs_out i) : COLOR0
 	float co = (roughness * 0.0175 + (1.57 * -roughness)) * 0.16 + 0.25;
 	float F = -cos(6.283185482f * frac(abs(co))) * Ks + Ks;
 	
-	float3 shadow_curve = sRGB2Lin(tex2D(g_transparency_s, float2(toon_shadow, 0.875)));
+	float3 shadow_curve = sRGB2Lin(tex2D(g_transparency_s, float2(toon_shadow, TC[0])));
 	shadow_curve *= g_light_env_chara_diffuse.xyz * g_light_env_chara_diffuse.w * (1 / PI);
 	
-	float3 spec_curve = sRGB2Lin(tex2D(g_transparency_s, float2(saturate(max(0.0, Spec)), 0.625)));
+	float3 spec_curve = sRGB2Lin(tex2D(g_transparency_s, float2(saturate(max(0.0, Spec)), TC[1])));
 	spec_curve *= g_light_env_chara_diffuse.xyz;
 	
-	float3 rim_curve = sRGB2Lin(tex2D(g_transparency_s, float2(1.0 - NdotV, 0.375)));
+	float3 rim_curve = sRGB2Lin(tex2D(g_transparency_s, float2(1.0 - NdotV, TC[2])));
 	rim_curve *= g_light_env_fresnel_ambient * Mat_Tex.w;
 	
 	float3 IBLvec = float3((normal.xy * (1.0 / abs(1.0)) + 1.5) - 1.5, -normal.z);

@@ -133,6 +133,19 @@ static float3 IBL1_direction = IBL1_Dire._41_42_43 - float3(-4.5, 9, -0.5);
 	textureCUBE g_envmap;
 #endif
 
+#if Flip_Tooncurve == 0
+static const float TC[] = {
+	0.875,
+	0.625,
+	0.375,
+};
+#else
+static const float TC[] = {
+	1-0.875,
+	1-0.625,
+	1-0.375,
+};
+#endif
   //=====================================================//
       #include "- Shaders/#Include/+ HgShadow.fxh"
   //=====================  Shaders  =====================//
